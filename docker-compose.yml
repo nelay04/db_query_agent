@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  django:
+    build: .
+    container_name: ai_query_agent
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    volumes:
+      - .:/app  # ← mounts local project folder into the container
+
+
+# automatically restarts the container if:
+# The container crashes
+# The host machine reboots
+# The Docker service restarts
+
+
+# Build with docker-compose build
+# Run with docker-compose up -d (-d for detached mode)
+# Stop with docker-compose down
+# To rebuild the image, use: docker-compose up --build -d (-d for detached mode)

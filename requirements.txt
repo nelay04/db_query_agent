@@ -1,0 +1,17 @@
+# Core Libraries
+Django
+requests
+datetime
+django-user-agents
+gunicorn
+whitenoise
+python-dotenv
+djangorestframework
+jinja2
+
+# Database
+psycopg2-binary
+
+# Optional AI/ML Libraries
+# transformers
+# torch

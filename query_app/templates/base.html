@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Database Interface{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/index.css' %}" />
+    {% block extra_head %}{% endblock %}
+  </head>
+
+  <body class="relative">
+    <div id="backdrop" class="backdrop hidden md:hidden"></div>
+
+    <button
+      id="reopenSidebarBtn"
+      class="hidden fixed top-4 left-2 z-40 bg-white shadow-md border rounded-full p-2 text-gray-700 hover:text-blue-600 md:block"
+    >
+      <i class="fas fa-arrow-right"></i>
+    </button>
+
+    {% include 'sidebar.html' %}
+
+    <div id="mainContent" class="main-content px-4 sm:px-6 md:px-8 lg:px-12">
+      {% block content %}{% endblock %}
+    </div>
+
+    <div id="customToastContainer" class="fixed top-4 right-4 z-50"></div>
+
+    {% block extra_js %}
+    {# Load utility scripts first as others might depend on them #}
+    <script src="{% static 'js/utils.js' %}"></script>
+    <script src="{% static 'js/sidebar.js' %}"></script>
+    {% endblock %}
+  </body>
+</html>
