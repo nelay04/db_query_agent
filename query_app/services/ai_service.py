@@ -1,6 +1,7 @@
 import os
 import google.generativeai as genai
 import json
+import re
 
 # Services
 from .response_service import ResponseService
@@ -24,34 +25,68 @@ else:
 
 class AIService:
     @staticmethod
-    def generate_sql_single_table(prompt: str, structure: str, table_name=str):
-        try:        
-            # return ('SELECT age, COUNT(*) FROM students WHERE age IN (18, 19, 21) GROUP BY age;')
+    def generate_sql_single_table(prompt: str, structure: str, table_name=str, sample_unstructured_data=None):
+        try:
+            # return ('Single table query')
+
             system_prompt = (
                 f"You are a SQL expert. The table is named '{table_name}' and its schema is:\n{structure}\n\n"
-                "You must convert user prompts into PostgreSQL SELECT queries that return grouped counts suitable for pie charts.\n"
+            )
+            if sample_unstructured_data:
+                system_prompt += (
+                    f"Here is some sample unstructured data for the table:\n{sample_unstructured_data}\n"
+                )
+            system_prompt += (
+               "You must convert user prompts into PostgreSQL SELECT queries that return grouped counts suitable for pie charts.\n\n"
+                "Your task:\n"
+                "1. Generate the main SELECT query.\n"
+                "2. Generate minimal atomic validation queries to verify correctness of all values and relationships used in the query.\n\n"
                 "Rules:\n"
-                "- Always return a query that selects a **single categorical column** (e.g., age, gender, department, city, grade, etc.).\n"
-                "- Count the number of rows for each distinct value in that column using `COUNT(*)`.\n"
-                "- Use `WHERE ... IN (...)` only if the user specifies a subset of values.\n"
-                "- Always use `GROUP BY <column>` to return results like: (label, count).\n"
-                "- Do **not** compute ratios, percentages, or numeric divisions in SQL.\n"
-                "- Do **not** format output in markdown or add explanations.\n\n"
-                "Your output should look like:\n"
-                "SELECT <column>, COUNT(*) FROM <table_name> [WHERE ...] GROUP BY <column>;\n\n"
+                "- Identify the most relevant **table** and **categorical column** based on the user's intent.\n"
+                "- The main query must count rows grouped by a **single categorical column** (e.g., age, gender, department, city, grade, etc.).\n"
+                "- Use `COUNT(*)` to count rows for each distinct value in the column.\n"
+                "- If the user specifies a subset of values, use `WHERE <column> IN (...)`.\n"
+                "- Always use `GROUP BY <column>` and return results as (label, count).\n"
+                "- Do **not** compute ratios, percentages, or numeric divisions.\n"
+                "- Do **not** format output in markdown or add explanations.\n"
+                "- Do **not** simplify, modify, or rephrase string literals. Use the **exact values from the user prompt** in WHERE clauses (e.g., exact addresses or names).\n"
+                "- For atomic checks, use `SELECT EXISTS(SELECT 1 FROM ...) AS <alias>` format.\n"
+                "- Each atomic check should validate either:\n"
+                "  • A specific value exists (e.g., a city, gender, or blood group), or\n"
+                "  • A valid relationship/join exists (e.g., student_id matches between two tables), or\n"
+                "  • All filters together produce results.\n"
+                "- Return the output in **strict JSON format** with two keys: `main_query` and `atomic_checks`.\n"
+                "- `main_query` is a string.\n"
+                "- `atomic_checks` is a list of objects with `description` and `query`.\n\n"
+                "Output format:\n"
+                "{\n"
+                '  "main_query": "SELECT ...;",\n'
+                '  "atomic_checks": [\n'
+                '    {\n'
+                '      "description": "Check if ...",\n'
+                '      "query": "SELECT EXISTS(SELECT 1 FROM ...) AS ...;"\n'
+                '    },\n'
+                '    ...\n'
+                '  ]\n'
+                "}\n\n"
                 "Here is the user's request:"
             )
 
             full_prompt = f"{system_prompt}\n\n{prompt}"
 
             response = model.generate_content(full_prompt)
-            sql = response.text.strip()
+            # print("\033[94mResponse from Gemini:\033[0m", response.text)
+            json_response = response.text.strip()
 
-            # Optional: remove markdown if Gemini returns ```sql ... ```
-            if sql.startswith("```"):
-                sql = sql.strip("```sql").strip("```").strip()
-
-            return( sql)
+            # # Optional: remove markdown if Gemini returns ```sql ... ```
+            if json_response.startswith("```"):
+                json_response = json_response.strip("```sql").strip("```").strip()
+            # Also remove a leading 'json' string if present
+            if json_response.lower().startswith("json"):
+                json_response = json_response[4:].lstrip(":").lstrip()
+                
+            parsed_data = json.loads(json_response)
+            return parsed_data # Return the Python dictionary
         except Exception as e:
             return ResponseService.error(f'Error generation query: {str(e)}', code=500)
         
@@ -59,7 +94,7 @@ class AIService:
     @staticmethod
     def generate_sql_multiple_table(prompt: str, structure: str):
         try:        
-            # return ('SELECT age, COUNT(*) FROM students WHERE age IN (18, 19, 21) GROUP BY age;')
+            # return ('Multiple table query')
             # system_prompt = (
             #     "You are a SQL expert. The database contains the following tables and their schemas:\n"
             #     f"{structure}\n\n"
@@ -120,7 +155,7 @@ class AIService:
             # return (full_prompt)
 
             response = model.generate_content(full_prompt)
-            print("\033[94mResponse from Gemini:\033[0m", response.text)
+            # print("\033[94mResponse from Gemini:\033[0m", response.text)
             json_response = response.text.strip()
 
             # # Optional: remove markdown if Gemini returns ```sql ... ```
@@ -159,7 +194,23 @@ class AIService:
                     }
             else:
                 chart_data = {"labels": ["Result"], "values": [float(result[0])]}
-            print("Single value result:", chart_data)
+            # print("Single value result:", chart_data)
             return chart_data
         except Exception as e:
             return ResponseService.error(f'Error generation chart data: {str(e)}', code=500)
+        
+
+
+    @staticmethod
+    def count_tokens_regex(text):
+        """
+        Counts tokens in a string using a regular expression.
+        A token is defined as a sequence of alphanumeric characters or a single non-whitespace, non-alphanumeric character.
+        This is a more robust approach than simple whitespace splitting.
+        """
+        # This regex matches:
+        # 1. Word characters (alphanumeric + underscore)
+        # 2. Or, any non-whitespace character that is not a word character (e.g., punctuation)
+        tokens = re.findall(r'\b\w+\b|[^ \t\n\r\f\v]', text)
+        return len(tokens)
+    

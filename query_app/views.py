@@ -68,21 +68,28 @@ def db_config(request):
 def generate_sql(request):
     try:
         user_query = request.data.get('user_query')
-        print(user_query)
+        # print(user_query)
         if not user_query:
             return ResponseService.error('Prompt is required', code=400)
 
         db_config = DbConfig.objects.filter(
             user_email=request.user.email).first()
+        
         schema_string = None
         schema_string = SQLService.fetch_schema(db_config)
-        print(f"Schema string: {schema_string}")
+        # print(f"Schema string: {schema_string}")
 
-        # sql_query = AIService.generate_sql_single_table(prompt=user_query, structure=schema_string, table_name=db_config.db_table_name)
-        data = AIService.generate_sql_multiple_table(
-            prompt=user_query, structure=schema_string)
+        if not db_config.db_table_name:
+            data = AIService.generate_sql_multiple_table(prompt=user_query, structure=schema_string)
+        else:
+            unstructured_fields = SQLService.find_unstructured_fields(schema_string)
+            print(f"Unstructured fields: {unstructured_fields}")
+            if unstructured_fields is not None:
+                sample_unstructured_data = SQLService.get_prominent_unstructured_data(unstructured_fields, db_config)
+                print(f"Sample unstructured data: {sample_unstructured_data}")
+            data = AIService.generate_sql_single_table(prompt=user_query, structure=schema_string, table_name=db_config.db_table_name, sample_unstructured_data=sample_unstructured_data)
 
-        print(data)
+        # print(data)
 
         return ResponseService.success('success', 200, data=data)
     except Exception as e:
@@ -93,7 +100,7 @@ def generate_sql(request):
 def generate_chart(request):
     try:
         sql_query = request.data.get('sql_query')
-        print(sql_query)
+        # print(sql_query)
         if not sql_query:
             return ResponseService.error('SQL query is required', code=400)
 
@@ -102,7 +109,7 @@ def generate_chart(request):
         result = SQLService.execute_sql(db_config, sql_query)
 
         chart_data = AIService.generate_chart_data(result)
-        print(chart_data)
+        # print(chart_data)
         return ResponseService.success('success', 200, data={'chart_data': chart_data})
     except Exception as e:
         return ResponseService.error(f'Error processing query: {str(e)}', code=500)
@@ -114,7 +121,7 @@ def check_atomic_query(request):
         db_config = DbConfig.objects.filter(
             user_email='snowflake.2k04@gmail.com').first()
         sql_query = request.data.get('query')
-        print(sql_query)
+        # print(sql_query)
         if not sql_query:
             return ResponseService.error('SQL query is required', code=400)
         if db_config is None:
@@ -123,7 +130,7 @@ def check_atomic_query(request):
 
         # Safely unwrap first value if available
         unwrapped_result = result[0][0] if result and result[0] else None
-        print("Unwrapped result:", unwrapped_result)
+        # print("Unwrapped result:", unwrapped_result)
         if unwrapped_result is False or unwrapped_result is None:
             return ResponseService.error('No data found', code=404)
         else:
