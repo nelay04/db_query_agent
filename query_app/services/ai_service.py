@@ -74,6 +74,9 @@ class AIService:
 
             full_prompt = f"{system_prompt}\n\n{prompt}"
 
+            # print(full_prompt)
+            # return full_prompt
+
             response = model.generate_content(full_prompt)
             # print("\033[94mResponse from Gemini:\033[0m", response.text)
             json_response = response.text.strip()

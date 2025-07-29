@@ -83,10 +83,10 @@ def generate_sql(request):
             data = AIService.generate_sql_multiple_table(prompt=user_query, structure=schema_string)
         else:
             unstructured_fields = SQLService.find_unstructured_fields(schema_string)
-            print(f"Unstructured fields: {unstructured_fields}")
+            # print(f"Unstructured fields: {unstructured_fields}")
             if unstructured_fields is not None:
                 sample_unstructured_data = SQLService.get_prominent_unstructured_data(unstructured_fields, db_config)
-                print(f"Sample unstructured data: {sample_unstructured_data}")
+                # print(f"Sample unstructured data: {sample_unstructured_data}")
             data = AIService.generate_sql_single_table(prompt=user_query, structure=schema_string, table_name=db_config.db_table_name, sample_unstructured_data=sample_unstructured_data)
 
         # print(data)
