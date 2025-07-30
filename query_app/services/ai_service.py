@@ -303,14 +303,13 @@ class AIService:
         
 
     @staticmethod
-    def generate_sql_single_table_final(prompt: str, structure: str, table_name=str, discovery_query_results=None, sample_unstructured_data=None): # Changed param name
+    def generate_sql_single_table_final(prompt: str, structure: str, table_name=str, discovery_query_results=None, sample_unstructured_data=None):
         try:
             system_prompt = (
                 f"You are a PostgreSQL SQL expert. The table is named '{table_name}' and its schema is:\n{structure}\n\n"
             )
 
             if sample_unstructured_data:
-                # If sample_unstructured_data is a list of dicts with column_name, data_type, sample_value
                 for col_info in sample_unstructured_data:
                     col_name = col_info.get('column_name')
                     data_type = col_info.get('data_type')
@@ -321,7 +320,7 @@ class AIService:
                     )
                 system_prompt += "\n"
 
-            if discovery_query_results: # Use the new parameter name
+            if discovery_query_results:
                 system_prompt += (
                     "**IMPORTANT: The following 'discovery_query_results' provide verified information and sample data obtained from previous exploratory queries.** "
                     "You MUST use these results to accurately construct the main query, especially for exact string matching and understanding JSON paths. "
@@ -360,7 +359,7 @@ class AIService:
                 "- Do **not** format output in markdown or add explanations within the SQL query.\n"
                 "- Do **not** simplify, modify, or rephrase string literals. Use the **exact values identified from the discovery query results** in WHERE clauses (e.g., exact assessment names, question texts, answer values).\n"
                 "- For JSON columns (like 'result'), if the desired array is nested within a key (e.g., `result: {'result': [...]}`), you **MUST** first cast the main JSON column to `jsonb` and then access the nested key: `(column_name::jsonb)->'nested_key'`.\n"
-                "- Use `LATERAL jsonb_array_elements(...)` to unnest arrays.\n"
+                "- Use `LATERAL jsonb_array_elements(...) AS alias_name(value_column_name)` to unnest arrays. When using `AS alias_name(value_column_name)`, the unnested element is available via `value_column_name`. You will then need to access its properties using `(value_column_name::jsonb)->>'key'`.\n"
                 "- Return the output in **strict JSON format** with a single key: `main_query`.\n"
                 "- `main_query` is a string containing the PostgreSQL SELECT query.\n\n"
                 "Output format:\n"
@@ -372,10 +371,11 @@ class AIService:
 
             full_prompt = f"{system_prompt}\n\n{prompt}"
 
-            # return(full_prompt)
+            # response = model.generate_content(full_prompt) # Uncomment this when using an actual LLM
+            # print(response) # For debugging LLM raw output
 
+            # For the purpose of demonstration, use the corrected Model.generate_content
             response = model.generate_content(full_prompt)
-            print(response)
 
             json_response = response.text.strip()
 
@@ -385,7 +385,7 @@ class AIService:
                 json_response = json_response[4:].lstrip(":").lstrip()
                 
             parsed_data = json.loads(json_response)
-            print(parsed_data)
+            # print(parsed_data) # For debugging parsed data
             
             return parsed_data
         except Exception as e:
