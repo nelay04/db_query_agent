@@ -167,26 +167,99 @@ class SQLService:
             return ResponseService.error(f'Error finding unstructured data fields: {str(e)}', code=500)
         
 
+    # @staticmethod
+    # def get_prominent_unstructured_data(unstructured_fields, db_config):
+    #     """
+    #     Connects to a PostgreSQL database and retrieves 1 prominent (non-null)
+    #     data entry for each specified unstructured field (JSON or ARRAY).
+
+    #     Args:
+    #         unstructured_fields (list): A list of field names (strings) to query.
+    #         db_config (object): An object with attributes:
+    #             db_host, db_port, db_user_name, db_password, db_database, db_table_name
+
+    #     Returns:
+    #         list: A list of dictionaries, each containing:
+    #             - 'column_name': str
+    #             - 'data_type': str
+    #             - 'sample_value': any
+    #     """
+    #     conn = None
+    #     result_list = []
+
+    #     try:
+    #         # Establish database connection
+    #         conn = psycopg2.connect(
+    #             host=db_config.db_host,
+    #             port=db_config.db_port,
+    #             user=db_config.db_user_name,
+    #             password=db_config.db_password,
+    #             dbname=db_config.db_database
+    #         )
+    #         cursor = conn.cursor()
+
+    #         table_name = db_config.db_table_name
+
+    #         for field in unstructured_fields:
+    #             # Query to get data type
+    #             type_query = f"""
+    #                 SELECT data_type
+    #                 FROM information_schema.columns
+    #                 WHERE table_name = %s AND column_name = %s
+    #                 LIMIT 1;
+    #             """
+    #             cursor.execute(type_query, (table_name, field))
+    #             type_result = cursor.fetchone()
+    #             data_type = type_result[0] if type_result else "unknown"
+
+    #             # Query to get sample value
+    #             sample_query = f"""
+    #                 SELECT {field}
+    #                 FROM {table_name}
+    #                 WHERE {field} IS NOT NULL
+    #                 LIMIT 1;
+    #             """
+    #             cursor.execute(sample_query)
+    #             data_result = cursor.fetchone()
+    #             sample_value = data_result[0] if data_result else None
+
+    #             result_list.append({
+    #                 "column_name": field,
+    #                 "data_type": data_type,
+    #                 "sample_value": sample_value
+    #             })
+
+    #     except (Exception, Error) as e:
+    #         print(f"Error: {e}")
+    #     finally:
+    #         if conn:
+    #             cursor.close()
+    #             conn.close()
+
+    #     return result_list
+
+
     @staticmethod
     def get_prominent_unstructured_data(unstructured_fields, db_config):
         """
-        Connects to a PostgreSQL database and retrieves up to 2 prominent (non-null)
-        data entries for specified unstructured fields (JSON or ARRAY).
+        Connects to a PostgreSQL database and retrieves sample values and data types
+        for specified unstructured fields (e.g., JSON, ARRAY).
 
         Args:
-            unstructured_fields (list): A list of field names (strings) to query.
-            db_config (dict): A dictionary containing database connection parameters:
-                            'host', 'port', 'user', 'password', 'dbname', 'tablename'.
+            unstructured_fields (list): A list of field names to inspect.
+            db_config (object): Contains PostgreSQL connection details:
+                                'db_host', 'db_port', 'db_user_name',
+                                'db_password', 'db_database', 'db_table_name'.
 
         Returns:
-            dict: A dictionary where keys are field names and values are lists
-                containing the retrieved prominent data. Returns an empty dictionary
-                if no data is found or an error occurs.
+            list: A list of dicts, each containing:
+                  - column_name
+                  - sample_value (non-null)
+                  - data_type (from pg_type)
         """
         conn = None
-        results = {}
+        results = []
         try:
-            # Establish the database connection
             conn = psycopg2.connect(
                 host=db_config.db_host,
                 port=db_config.db_port,
@@ -199,29 +272,64 @@ class SQLService:
             table_name = db_config.db_table_name
 
             for field in unstructured_fields:
-                # Construct the query to select up to 2 non-null values.
-                # For "prominent" in unstructured data (like JSON or ARRAY),
-                # we are simply selecting the first two non-null entries found.
-                # If "prominent" implies specific criteria (e.g., largest JSON object,
-                # longest array), the query would need to be more complex (e.g.,
-                # using ORDER BY LENGTH(CAST(field AS TEXT)) DESC).
-                query = f"SELECT {field} FROM {table_name} WHERE {field} IS NOT NULL LIMIT 2;"
-                
-                # print(f"Executing query for field '{field}': {query}") # For debugging
+                # Retrieve 1 non-null sample value and the PostgreSQL data type
+                query = f"""
+                    SELECT {field}, pg_typeof({field})::text
+                    FROM {table_name}
+                    WHERE {field} IS NOT NULL
+                    LIMIT 1;
+                """
                 cursor.execute(query)
-                fetched_data = cursor.fetchall()
-
-                # Extract just the data from the fetched tuples (e.g., [(value,), (value,)])
-                field_data = [item[0] for item in fetched_data]
-                results[field] = field_data
-                # print(f"Retrieved data for '{field}': {field_data}") # For debugging
+                row = cursor.fetchone()
+                if row:
+                    sample_value, data_type = row
+                    results.append({
+                        "column_name": field,
+                        "sample_value": sample_value,
+                        "data_type": data_type
+                    })
 
         except (Exception, Error) as e:
             print(f"Error while connecting to PostgreSQL or querying: {e}")
-            # In a real application, you might want to log this error or handle it more gracefully
         finally:
             if conn:
                 cursor.close()
                 conn.close()
-                # print("PostgreSQL connection closed.")
+        return results
+
+
+    @staticmethod
+    def perform_discovery_query(discovery_queries, db_config):
+        try:
+            conn = psycopg2.connect(
+                host=db_config.db_host,
+                port=db_config.db_port,
+                user=db_config.db_user_name,
+                password=db_config.db_password,
+                dbname=db_config.db_database
+            )
+            cursor = conn.cursor()
+
+            table_name = db_config.db_table_name
+
+            results = []
+            for item in discovery_queries.get('discovery_queries', []):
+                description = item.get('description')
+                query = item.get('query')
+                try:
+                    cursor.execute(query)
+                    query_result = cursor.fetchall()
+                except Exception as e:
+                    query_result = f"Error executing query: {str(e)}"
+                results.append({
+                    "description": description,
+                    "query": query,
+                    "query_result": query_result
+                })
+        except (Exception, Error) as e:
+            print(f"Error while connecting to PostgreSQL or querying: {e}")
+        finally:
+            if conn:
+                cursor.close()
+                conn.close()
         return results
