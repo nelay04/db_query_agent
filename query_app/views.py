@@ -113,25 +113,6 @@ def generate_sql(request):
 
 
 @api_view(['POST'])
-def generate_chart(request):
-    try:
-        sql_query = request.data.get('sql_query')
-        # print(sql_query)
-        if not sql_query:
-            return ResponseService.error('SQL query is required', code=400)
-
-        db_config = DbConfig.objects.filter(
-            user_email=request.user.email).first()
-        result = SQLService.execute_sql(db_config, sql_query)
-
-        chart_data = AIService.generate_chart_data(result)
-        # print(chart_data)
-        return ResponseService.success('success', 200, data={'chart_data': chart_data})
-    except Exception as e:
-        return ResponseService.error(f'Error processing query: {str(e)}', code=500)
-
-
-@api_view(['POST'])
 def check_atomic_query(request):
     try:
         db_config = DbConfig.objects.filter(
@@ -184,21 +165,52 @@ def gather_information(request):
         discovery_queries = AIService.generate_discovery_queries(
             prompt=user_query, structure=schema_string, table_name=db_config.db_table_name, sample_unstructured_data=sample_unstructured_data)
         
-        print (discovery_queries)
+        # print (discovery_queries)
 
         discovery_data = SQLService.perform_discovery_query(
             discovery_queries=discovery_queries, db_config = db_config
         )
 
-        print('\n')
-        print(discovery_data)
+        # print('\n')
+        # print(discovery_data)
 
-        data = AIService.generate_sql_single_table_final(prompt=user_query, 
-                                                         structure=schema_string, 
-                                                         table_name=db_config.db_table_name,
-                                                         discovery_query_results = discovery_data,
-                                                         sample_unstructured_data = sample_unstructured_data)
+        data = AIService.generate_sql_single_table_final(
+            prompt=user_query,
+            structure=schema_string,
+            table_name=db_config.db_table_name,
+            discovery_query_results=discovery_data,
+            sample_unstructured_data=sample_unstructured_data
+        )
 
-        return ResponseService.success('success', 200, data=data)
+        # # Get the query result
+        # sql_query = data.get("main_query")
+        # print('\n' + sql_query)
+        # main_query_result = SQLService.execute_sql(db_config, str(sql_query)) if sql_query else None
+        # print('\n' + main_query_result)
+        # data['main_query_result'] = main_query_result
+        # print('\n' + data)
+
+        return ResponseService.success('success', 200, data={'result': data, 'discovery_data': discovery_data})
+    except Exception as e:
+        return ResponseService.error(f'Error processing query: {str(e)}', code=500)
+    
+
+
+@api_view(['POST'])
+def generate_chart(request):
+    try:
+        sql_query = request.data.get('sql_query')
+        email = request.data.get('email')
+        # print(sql_query)
+        if not sql_query:
+            return ResponseService.error('SQL query is required', code=400)
+
+        db_config = DbConfig.objects.filter(
+            user_email=email if email else request.user.email).first()
+        result = SQLService.execute_sql(db_config, sql_query)
+        # print (result)
+        chart_data = AIService.generate_chart_data(result)
+        # print(chart_data)
+        return ResponseService.success('success', 200, data={'result':result, 'chart_data': chart_data})
     except Exception as e:
         return ResponseService.error(f'Error processing query: {str(e)}', code=500)

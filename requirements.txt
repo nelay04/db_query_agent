@@ -15,3 +15,4 @@ psycopg2-binary
 # Optional AI/ML Libraries
 # transformers
 # torch
+google-generativeai

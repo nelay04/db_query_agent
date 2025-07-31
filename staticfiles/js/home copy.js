@@ -2,19 +2,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const executeQueryBtn = document.getElementById('executeQueryBtn');
-    const nextButton = document.getElementById('nextButton'); // This will become "Execute query and Generate chart"
+    const nextButton = document.getElementById('nextButton');
     const toggleAtomicChecksBtn = document.getElementById('toggleAtomicChecksBtn');
     const atomicChecksContainer = document.getElementById('atomicChecksContainer');
     const atomicChecksList = document.getElementById('atomicChecksList');
-    const mainQueryResultPre = document.getElementById('mainQueryResult'); // The answer field for ratio-like result
-    
-    // New elements for chart display section
-    const chartDisplaySection = document.getElementById('chartDisplaySection');
-    const chartTypeSelect = document.getElementById('chartTypeSelect');
-    const chartQueryResultPre = document.getElementById('chartQueryResult'); // To display the 'result' from chart API
-    const chartCanvas = document.getElementById('mainChart');
-    const chartContainer = document.getElementById('chartContainer');
-
     let myChart = null; // Variable to hold the Chart.js instance, scoped to home.js
 
     const queryForm = document.getElementById('queryForm');
@@ -29,18 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const resultContainer = document.getElementById('queryResultContainer');
-
+            const mainQueryResultPre = document.getElementById('mainQueryResult');
+            const chartContainer = document.getElementById('chartContainer');
 
             // Reset UI for new query
             resultContainer.classList.remove('hidden');
-            mainQueryResultPre.textContent = 'Loading...'; // Clear previous result
-            nextButton.classList.add('hidden'); // Hide "Execute query and Generate chart" button initially
-            chartDisplaySection.classList.add('hidden'); // Hide chart display section initially
-            chartQueryResultPre.textContent = 'Loading Chart Data Result...'; // Clear previous chart query result
+            mainQueryResultPre.textContent = 'Loading...';
+            nextButton.classList.add('hidden'); // Hide chart button initially
+            chartContainer.classList.add('hidden'); // Hide chart container initially
             atomicChecksContainer.classList.add('hidden'); // Hide atomic checks
             atomicChecksList.innerHTML = ''; // Clear previous atomic checks
             toggleAtomicChecksBtn.textContent = 'Show Atomic Checks'; // Reset button text
-            toggleAtomicChecksBtn.classList.add('hidden'); // Hide "Show Atomic Checks" button
 
             // Destroy existing chart if it exists and clear the canvas
             if (myChart) {
@@ -48,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 myChart = null;
             }
             // Ensure the canvas is cleared even if Chart.js instance was not found/destroyed
+            const chartCanvas = document.getElementById('pieChart');
             if (chartCanvas) {
                 const ctx = chartCanvas.getContext('2d');
                 ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
@@ -55,13 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Disable buttons during fetch
             executeQueryBtn.disabled = true;
-            executeQueryBtn.textContent = 'Running Query...'; // Changed text
+            executeQueryBtn.textContent = 'Executing...';
             nextButton.disabled = true;
             toggleAtomicChecksBtn.disabled = true;
 
 
-            // AJAX POST for generating SQL and getting initial result
-            fetch('/api/gather_information/', {
+            // AJAX POST for generating SQL
+            fetch('/api/generate_sql/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -72,54 +63,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((response) => response.json())
                 .then((data) => {
                     if (data.success) {
-                        showCustomToast(data.message || 'Data Retrieved', 'success'); // Toast for data retrieval
+                        showCustomToast(data.message || 'SQL Generated', 'success'); // showCustomToast comes from utils.js
+                        // *** IMPORTANT CHANGE HERE: Directly use data.data, it's already an object ***
                         if (data.data && typeof data.data === 'object') {
-                            const responseData = data.data;
+                            const responseData = data.data; // Renamed for clarity, it's the inner 'data' object
 
-                            // Display Main Query Result (the ratio-like answer)
-                            if (responseData.result && typeof responseData.result.main_query === 'string') {
-                                mainQueryResultPre.textContent = responseData.result.main_query; // Display the direct answer
-                                // We now set the SQL query for the 'Execute query and Generate chart' button here if needed for the chart API
-                                nextButton.dataset.sqlQuery = responseData.result.main_query;
-                                nextButton.classList.remove('hidden'); // Show the "Execute query and Generate chart" button
-                                nextButton.disabled = false; // Enable the "Execute query and Generate chart" button
-                                nextButton.textContent = 'Execute query and Generate chart'; // Ensure button text is correct
+                            // Display Main Query
+                            if (typeof responseData.main_query === 'string') {
+                                mainQueryResultPre.textContent = responseData.main_query;
+                                nextButton.classList.remove('hidden'); // Show the "Generate Chart" button
+                                nextButton.disabled = false; // Enable the "Generate Chart" button
+                                nextButton.dataset.sqlQuery = responseData.main_query; // Store SQL query for chart generation
                             } else {
-                                mainQueryResultPre.textContent = 'No main result returned.';
+                                mainQueryResultPre.textContent = 'No main SQL query returned.';
                                 nextButton.classList.add('hidden');
                             }
 
-                            // Display Atomic Checks (discovery_data)
-                            if (Array.isArray(responseData.discovery_data) && responseData.discovery_data.length > 0) {
+                            // Display Atomic Checks
+                            if (Array.isArray(responseData.atomic_checks) && responseData.atomic_checks.length > 0) {
                                 toggleAtomicChecksBtn.disabled = false;
-                                toggleAtomicChecksBtn.classList.remove('hidden'); // Show button on success with data
-                                responseData.discovery_data.forEach((check, index) => {
+                                responseData.atomic_checks.forEach((check, index) => {
                                     const checkItem = document.createElement('div');
                                     checkItem.classList.add('mb-3', 'p-3', 'border', 'border-gray-300', 'rounded-md', 'bg-gray-50');
-
-                                    let resultDisplay = '';
-                                    if (check.query_result && check.query_result.length > 0) {
-                                        resultDisplay = JSON.stringify(check.query_result, null, 2);
-                                    } else {
-                                        resultDisplay = 'No result returned or result is empty.';
-                                    }
-
                                     checkItem.innerHTML = `
                                         <p class="font-medium text-gray-800 mb-1">${index + 1}. ${check.description}</p>
-                                        <h6 class="text-sm font-medium text-gray-700 mb-1">Query:</h6>
                                         <pre class="bg-gray-100 p-2 rounded-md text-gray-700 overflow-auto text-xs font-mono mb-2">${check.query}</pre>
-                                        <h6 class="text-sm font-medium text-gray-700 mb-1">Result:</h6>
-                                        ${
-                                            resultDisplay === 'No result returned or result is empty.'
-                                                ? `<pre class="bg-yellow-50 p-2 rounded-md text-yellow-800 overflow-auto text-xs font-mono mt-2">${resultDisplay}</pre>`
-                                                : `<pre class="bg-green-100 p-2 rounded-md text-green-800 overflow-auto text-xs font-mono mt-2">${resultDisplay}</pre>`
-                                        }
+                                        <button class="test-atomic-query-btn bg-purple-600 hover:bg-purple-700 text-white text-sm py-1 px-3 rounded-md shadow-sm" data-query="${encodeURIComponent(check.query)}">Test This Query</button>
+                                        <pre class="atomic-query-result bg-yellow-50 p-2 rounded-md text-yellow-800 overflow-auto text-xs font-mono mt-2 hidden">Result will appear here...</pre>
                                     `;
                                     atomicChecksList.appendChild(checkItem);
                                 });
+
+                                // Attach event listeners to the new "Test This Query" buttons
+                                document.querySelectorAll('.test-atomic-query-btn').forEach(button => {
+                                    button.addEventListener('click', function () {
+                                        const queryToTest = decodeURIComponent(this.dataset.query);
+                                        const resultPre = this.nextElementSibling; // The pre tag right after the button
+
+                                        resultPre.textContent = 'Executing atomic query...';
+                                        resultPre.classList.remove('hidden');
+                                        this.disabled = true;
+
+                                        fetch('/api/check-atomic-query/', { // New API endpoint for atomic checks
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'X-CSRFToken': getCSRFToken(),
+                                            },
+                                            body: JSON.stringify({ query: queryToTest }),
+                                        })
+                                            .then(response => response.json())
+                                            .then(data => {
+                                                if (data.success) {
+                                                    resultPre.textContent = 'Success: ' + (data.message || 'Executed atomic query successfully');
+                                                    resultPre.classList.remove('text-yellow-800');
+                                                    resultPre.classList.remove('bg-yellow-50');
+                                                    resultPre.classList.add('text-green-800');
+                                                    resultPre.classList.add('bg-green-50');
+                                                    showCustomToast('Atomic check successful!', 'success');
+                                                } else {
+                                                    resultPre.textContent = 'Error: ' + (data.message || 'Failed to execute atomic query');
+                                                    resultPre.classList.remove('text-green-800');
+                                                    resultPre.classList.remove('bg-green-50');
+                                                    resultPre.classList.add('text-red-800');
+                                                    resultPre.classList.add('bg-red-50');
+                                                    showCustomToast(data.message || 'Atomic check failed!', 'error');
+                                                }
+                                            })
+                                            .catch(error => {
+                                                console.error('Error testing atomic query:', error);
+                                                resultPre.textContent = 'Network error during atomic query test.';
+                                                resultPre.classList.remove('text-green-800');
+                                                resultPre.classList.remove('bg-green-50');
+                                                resultPre.classList.add('text-red-800');
+                                                resultPre.classList.add('bg-red-50');
+                                                showCustomToast('Network error during atomic check.', 'error');
+                                            })
+                                            .finally(() => {
+                                                this.disabled = false;
+                                            });
+                                    });
+                                });
+
                             } else {
                                 toggleAtomicChecksBtn.disabled = true;
-                                toggleAtomicChecksBtn.classList.add('hidden'); // Ensure hidden if no data
                                 atomicChecksList.innerHTML = '<p class="text-gray-600">No atomic checks generated for this query.</p>';
                             }
 
@@ -127,27 +154,25 @@ document.addEventListener('DOMContentLoaded', () => {
                             mainQueryResultPre.textContent = 'No data returned or data format is incorrect.';
                             nextButton.classList.add('hidden');
                             toggleAtomicChecksBtn.disabled = true;
-                            toggleAtomicChecksBtn.classList.add('hidden'); // Ensure hidden if no data
                         }
                     } else {
-                        showCustomToast(data.message || 'Something went wrong during query execution', 'error');
+                        showCustomToast(data.message || 'Something went wrong during SQL generation', 'error');
                         mainQueryResultPre.textContent = 'Error: ' + (data.message || 'Unknown error');
                         nextButton.classList.add('hidden');
                         toggleAtomicChecksBtn.disabled = true;
-                        toggleAtomicChecksBtn.classList.add('hidden'); // Ensure hidden on error
                     }
                 })
                 .catch((error) => {
                     console.error('Error:', error);
-                    showCustomToast('Network error during query execution. Please try again.', 'error');
+                    showCustomToast('Network error during SQL generation. Please try again.', 'error');
                     mainQueryResultPre.textContent = 'Network error. Please try again.';
                     nextButton.classList.add('hidden');
                     toggleAtomicChecksBtn.disabled = true;
-                    toggleAtomicChecksBtn.classList.add('hidden'); // Ensure hidden on network error
                 })
                 .finally(() => {
+                    // Re-enable the execute query button
                     executeQueryBtn.disabled = false;
-                    executeQueryBtn.textContent = 'Run the Query'; // Changed back to "Run the Query"
+                    executeQueryBtn.textContent = 'Execute Query';
                 });
         });
     }
@@ -165,54 +190,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Attach the event listener for nextButton (Execute query and Generate chart)
+    // Attach the event listener for nextButton (Generate Chart)
     if (nextButton) {
         nextButton.addEventListener('click', function () {
-            const sqlQuery = this.dataset.sqlQuery; // Get the SQL query stored from the previous step
-            const selectedChartType = chartTypeSelect.value; // Get the selected chart type
+            const sqlQuery = this.dataset.sqlQuery; // Retrieve SQL query from dataset
 
             if (!sqlQuery) {
                 showCustomToast('No SQL query available to generate chart.', 'error');
                 return;
             }
 
-            chartDisplaySection.classList.remove('hidden'); // Show the chart display section
-            chartQueryResultPre.textContent = 'Loading Chart Data Result...'; // Reset text
+            // Show chart loading indicator
+            const chartContainer = document.getElementById('chartContainer');
+            chartContainer.classList.remove('hidden');
 
-            // Destroy existing chart if it exists and clear the canvas
-            if (myChart) {
-                myChart.destroy();
-                myChart = null;
-            }
-            // Recreate canvas element to ensure a clean slate for Chart.js
-            const oldCanvas = document.getElementById('mainChart');
-            const parentDiv = oldCanvas ? oldCanvas.parentNode : chartContainer; // Use chartContainer if oldCanvas not found
+            // IMPORTANT: Recreate the canvas element to ensure a clean slate
+            const oldCanvas = document.getElementById('pieChart');
+            const parentDiv = oldCanvas ? oldCanvas.parentNode : null;
 
-            if (oldCanvas && parentDiv) {
+            if (parentDiv) {
                 parentDiv.removeChild(oldCanvas);
             }
 
             const newCanvas = document.createElement('canvas');
-            newCanvas.id = 'mainChart';
-            newCanvas.width = 300;
-            newCanvas.height = 300;
+            newCanvas.id = 'pieChart';
+            newCanvas.width = 300; // Set initial width
+            newCanvas.height = 300; // Set initial height
             if (parentDiv) {
                 parentDiv.appendChild(newCanvas);
             } else {
-                chartContainer.appendChild(newCanvas); // Fallback, though parentDiv should be chartContainer
+                // Fallback if parentDiv is null (e.g., chartContainer not fully rendered)
+                chartContainer.appendChild(newCanvas);
             }
+
             const ctx = newCanvas.getContext('2d');
 
+            // Destroy existing chart if it exists (though recreating canvas largely avoids this)
+            if (myChart) {
+                myChart.destroy();
+                myChart = null;
+            }
 
+            // Disable button during chart generation
             nextButton.disabled = true;
             nextButton.textContent = 'Generating Chart...';
 
-            // AJAX POST for generating Chart
+            // AJAX POST request for chart data
             fetch('/api/generate_chart/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCSRFToken(),
+                    'X-CSRFToken': getCSRFToken(), // getCSRFToken comes from utils.js
                 },
                 body: JSON.stringify({ sql_query: sqlQuery }),
             })
@@ -227,27 +255,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     ) {
                         showCustomToast(data.message || 'Chart Generated Successfully', 'success');
 
-                        // Display the result array in chartQueryResultPre
-                        if (data.data.result) {
-                            chartQueryResultPre.textContent = JSON.stringify(data.data.result, null, 2);
-                        } else {
-                            chartQueryResultPre.textContent = 'No explicit query result for chart.';
-                        }
-
+                        // Initialize Chart.js on the NEW canvas
                         myChart = new Chart(ctx, {
-                            type: selectedChartType, // Use the selected chart type
+                            type: 'pie',
                             data: {
                                 labels: data.data.chart_data.labels,
                                 datasets: [
                                     {
                                         data: data.data.chart_data.values,
                                         backgroundColor: [
-                                            '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
-                                            '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',
+                                            '#4e79a7',
+                                            '#f28e2b',
+                                            '#e15759',
+                                            '#76b7b2',
+                                            '#59a14f',
+                                            '#edc949',
+                                            '#af7aa1',
+                                            '#ff9da7',
+                                            '#9c755f',
+                                            '#bab0ab',
                                         ],
-                                        // Add border for better visibility on some charts
-                                        borderColor: '#ffffff', 
-                                        borderWidth: 1,
                                     },
                                 ],
                             },
@@ -262,14 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         },
                                     },
                                 },
-                                // Specific options for different chart types
-                                ...(selectedChartType === 'pie' || selectedChartType === 'doughnut' ? {} : {
-                                    scales: {
-                                        y: {
-                                            beginAtZero: true
-                                        }
-                                    }
-                                })
                             },
                         });
                     } else {
@@ -277,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             data.message || 'No chart data received or error during chart generation',
                             'error'
                         );
+                        // Display error message on the new canvas
                         ctx.clearRect(0, 0, newCanvas.width, newCanvas.height);
                         ctx.font = '16px Inter';
                         ctx.fillStyle = '#ef4444';
@@ -286,33 +306,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             newCanvas.width / 2,
                             newCanvas.height / 2
                         );
-                        chartQueryResultPre.textContent = 'Error: ' + (data.message || 'No chart data available');
                     }
                 })
                 .catch((error) => {
                     console.error('Error:', error);
                     showCustomToast('Network error during chart generation. Please try again.', 'error');
+                    // Display network error on the new canvas
                     ctx.clearRect(0, 0, newCanvas.width, newCanvas.height);
                     ctx.font = '16px Inter';
                     ctx.fillStyle = '#ef4444';
                     ctx.textAlign = 'center';
                     ctx.fillText('Network error.', newCanvas.width / 2, newCanvas.height / 2);
-                    chartQueryResultPre.textContent = 'Network error. Please try again.';
                 })
                 .finally(() => {
                     nextButton.disabled = false;
-                    nextButton.textContent = 'Execute query and Generate chart';
+                    nextButton.textContent = 'Generate Chart';
                 });
-        });
-    }
-
-    // Add event listener for chart type selection change
-    if (chartTypeSelect) {
-        chartTypeSelect.addEventListener('change', () => {
-            // Trigger chart regeneration with the new type if data is already loaded
-            if (myChart && nextButton.dataset.sqlQuery) {
-                nextButton.click(); // Simulate a click on the "Generate Chart" button
-            }
         });
     }
 });

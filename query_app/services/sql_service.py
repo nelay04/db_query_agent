@@ -115,6 +115,7 @@ class SQLService:
     @staticmethod
     def execute_sql(db_config, query:str):
         try:
+            print('execute_sql')
             conn = psycopg2.connect(
                 host=db_config.db_host,
                 port=db_config.db_port,
@@ -127,6 +128,7 @@ class SQLService:
             result = cur.fetchall()
             cur.close()
             conn.close()
+            print('executed')
             return result
         except Exception as e:
             return ResponseService.error(f'Error executing query: {str(e)}', code=500)
