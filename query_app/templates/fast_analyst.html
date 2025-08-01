@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<header class="w-full max-w-3xl flex justify-between items-center mb-6">
+    <button id="openSidebarBtn" class="text-gray-600 hover:text-gray-900 focus:outline-none md:hidden">
+        <i class="fas fa-bars text-2xl"></i>
+    </button>
+    <h1 class="text-3xl font-semibold text-gray-800 flex-grow text-center">
+        Fast Analyst
+    </h1>
+    <div class="w-6 md:hidden"></div>
+</header>
+
+<div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-3xl mx-auto">
+    <h2 class="text-center text-1xl font-semibold text-gray-800 mb-6" id="typing-text"></h2>
+
+    <script>
+    const text = "Quick insights, zero clutter. Let’s get straight to the point...";
+    let i = 0;
+    const speed = 60; // milliseconds per character
+
+    function typeWriter() {
+        if (i < text.length) {
+        document.getElementById("typing-text").innerHTML += text.charAt(i);
+        i++;
+        setTimeout(typeWriter, speed);
+        }
+    }
+
+    // Start the typing effect when the page loads
+    window.onload = typeWriter;
+    </script>
+    
+    <form id="queryForm" autocomplete="off">
+        <div class="mb-4">
+            <label for="userQuery" class="block text-sm font-medium text-gray-700 mb-1">Query</label>
+            <textarea id="userQuery" rows="4" placeholder="The ratio of students for each unique blood group type."
+                class="resize-y w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm font-mono"
+                autocomplete="off"></textarea>
+        </div>
+        <div class="mt-4">
+            <button type="submit" id="executeQueryBtn"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md shadow-md">
+                Run the Query
+            </button>
+        </div>
+    </form>
+
+    <div id="queryResultContainer" class="mt-6 hidden">
+        <h5 class="text-lg font-medium text-gray-700 mb-2">Query Result:</h5>
+        <pre id="mainQueryResult"
+            class="bg-gray-50 p-4 rounded-md border border-gray-200 text-gray-800 overflow-auto text-sm max-h-64">Loading...</pre>
+
+        <div class="mt-4">
+            <button id="toggleAtomicChecksBtn"
+                class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md shadow-md">
+                Show Atomic Checks
+            </button>
+            <div id="atomicChecksContainer" class="hidden mt-4 border border-gray-200 rounded-md p-4">
+                <h6 class="text-md font-medium text-gray-700 mb-3">Atomic Checks:</h6>
+                <div id="atomicChecksList">
+                    </div>
+            </div>
+        </div>
+
+        <button id="nextButton"
+            class="hidden w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md shadow-md mt-4">
+            Generate Chart
+        </button>
+
+        <div id="chartDisplaySection" class="mt-6 hidden">
+            <h5 class="text-lg font-medium text-gray-700 mb-2">Chart Data Result:</h5>
+            <pre id="chartQueryResult"
+                class="bg-gray-50 p-4 rounded-md border border-gray-200 text-gray-800 overflow-auto text-sm max-h-64">Loading Chart Data Result...</pre>
+
+            <div class="mt-4 mb-4">
+                <label for="chartTypeSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Chart Type:</label>
+                <select id="chartTypeSelect"
+                    class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <option value="pie">Pie Chart</option>
+                    <option value="bar">Bar Chart</option>
+                    <option value="doughnut">Doughnut Chart</option>
+                    <option value="polarArea">Polar Area Chart</option>
+                </select>
+            </div>
+
+            <div id="chartContainer" class="mt-4 p-4 border border-green-800 rounded-md bg-white flex justify-center items-center" style="min-height: 350px;">
+                <canvas id="mainChart" width="300" height="300"></canvas>
+            </div>
+            
+        </div>
+        </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }} {# This includes the scripts from base.html (utils.js, sidebar.js) #}
+{% load static %}
+<script src="{% static 'js/fast_analyst.js' %}"></script> {# Load home-specific script last #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}

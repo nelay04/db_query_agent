@@ -16,13 +16,19 @@ else:
     print("\033[92mUsing GEMINI_API_KEY from environment\033[0m")
     genai.configure(api_key=api_key)
 
-    model_name = os.getenv("GENERATIVE_MODEL")
+    model_name = os.getenv("GENERATIVE_MODEL_LITE")
     if not model_name:
-        print("\033[91mCould not find GENERATIVE_MODEL environment variable\033[0m")
+        print("\033[91mCould not find GENERATIVE_MODEL_LITE environment variable\033[0m")
     else:
-        print(f"\033[92mUsing {model_name} as generative model\033[0m\n")
+        print(f"\033[92mUsing {model_name} as generative model lite\033[0m")
         model = genai.GenerativeModel(model_name)
 
+    flash_model_name = os.getenv("GENERATIVE_MODEL")
+    if not flash_model_name:
+        print("\033[91mCould not find GENERATIVE_MODEL environment variable\033[0m")
+    else:
+        print(f"\033[92mUsing {flash_model_name} as generative model\033[0m\n")
+        flash_model = genai.GenerativeModel(flash_model_name)
 
 class AIService:
     @staticmethod
@@ -286,7 +292,7 @@ class AIService:
 
             full_prompt = f"{system_prompt}\n\n{prompt}"
 
-            response = model.generate_content(full_prompt)
+            response = flash_model.generate_content(full_prompt)
             json_response = response.text.strip()
 
             # Cleanup formatting if needed (e.g., removing markdown code blocks)
@@ -375,7 +381,7 @@ class AIService:
             # print(response) # For debugging LLM raw output
 
             # For the purpose of demonstration, use the corrected Model.generate_content
-            response = model.generate_content(full_prompt)
+            response = flash_model.generate_content(full_prompt)
 
             json_response = response.text.strip()
 

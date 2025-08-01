@@ -27,7 +27,31 @@ def index(request):
 
         db_config = DbConfig.objects.filter(user_email=user.email).first()
         # Pass db_config to the template
-        return render(request, 'home.html', {'db_config': db_config, 'user_email': user.email})
+        return render(request, 'index.html', {'db_config': db_config, 'user_email': user.email})
+    except Exception as e:
+        return HttpResponse(f'Error: {str(e)}', status=500)
+
+
+def deep_driver(request):
+    try:
+        # Get currently authenticated user data
+        user = request.user
+
+        db_config = DbConfig.objects.filter(user_email=user.email).first()
+        # Pass db_config to the template
+        return render(request, 'deep_driver.html', {'db_config': db_config, 'user_email': user.email})
+    except Exception as e:
+        return HttpResponse(f'Error: {str(e)}', status=500)
+    
+
+def fast_analyst(request):
+    try:
+        # Get currently authenticated user data
+        user = request.user
+
+        db_config = DbConfig.objects.filter(user_email=user.email).first()
+        # Pass db_config to the template
+        return render(request, 'fast_analyst.html', {'db_config': db_config, 'user_email': user.email})
     except Exception as e:
         return HttpResponse(f'Error: {str(e)}', status=500)
 
@@ -80,12 +104,13 @@ def db_config(request):
 def generate_sql(request):
     try:
         user_query = request.data.get('user_query')
+        email = request.data.get('email')
         # print(user_query)
         if not user_query:
             return ResponseService.error('Prompt is required', code=400)
 
         db_config = DbConfig.objects.filter(
-            user_email=request.user.email).first()
+            user_email=email if email else request.user.email).first()
 
         schema_string = None
         schema_string = SQLService.fetch_schema(db_config)
@@ -131,7 +156,7 @@ def check_atomic_query(request):
         if unwrapped_result is False or unwrapped_result is None:
             return ResponseService.error('No data found', code=404)
         else:
-            return ResponseService.success('Expected data found', code=200)
+            return ResponseService.success('Expected data found', code=200, data = {'result': result})
 
     except Exception as e:
         return ResponseService.error(f'Error processing query: {str(e)}', code=500)
